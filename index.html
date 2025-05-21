@@ -21,18 +21,19 @@
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 12px;
+      gap: 14px;
       z-index: 10;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 10px 15px;
-      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 12px 18px;
+      border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      flex-wrap: wrap;
     }
     .tools input[type="color"],
     .tools input[type="range"],
     .tools button {
       font-size: 16px;
-      padding: 5px;
+      padding: 6px 8px;
     }
   </style>
 </head>
@@ -40,6 +41,8 @@
   <div class="tools">
     <input type="color" id="colorPicker" value="#000000">
     <input type="range" id="lineWidth" min="1" max="30" value="5">
+    <button id="undo">◀️ Назад</button>
+    <button id="redo">Вперед ▶️</button>
     <button id="eraser">Ластик</button>
     <button id="clear">Очистити</button>
   </div>
@@ -52,19 +55,59 @@
     const lineWidth = document.getElementById('lineWidth');
     const eraser = document.getElementById('eraser');
     const clear = document.getElementById('clear');
+    const undoBtn = document.getElementById('undo');
+    const redoBtn = document.getElementById('redo');
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      restoreCanvas();
     }
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
 
     let drawing = false;
     let currentColor = colorPicker.value;
     let currentLineWidth = lineWidth.value;
     let isErasing = false;
+    let history = [];
+    let redoStack = [];
+
+    function saveCanvas() {
+      history.push(canvas.toDataURL());
+      if (history.length > 100) history.shift(); // обмеження історії
+      redoStack = [];
+    }
+
+    function restoreCanvas() {
+      if (history.length === 0) return;
+      const img = new Image();
+      img.src = history[history.length - 1];
+      img.onload = () => ctx.drawImage(img, 0, 0);
+    }
+
+    function undo() {
+      if (history.length > 1) {
+        redoStack.push(history.pop());
+        const img = new Image();
+        img.src = history[history.length - 1];
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+      }
+    }
+
+    function redo() {
+      if (redoStack.length > 0) {
+        const imgData = redoStack.pop();
+        history.push(imgData);
+        const img = new Image();
+        img.src = imgData;
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+      }
+    }
 
     function getPos(e) {
       const rect = canvas.getBoundingClientRect();
@@ -81,14 +124,14 @@
       }
     }
 
-    canvas.addEventListener('mousedown', e => {
+    function startDrawing(e) {
       drawing = true;
       const pos = getPos(e);
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
-    });
+    }
 
-    canvas.addEventListener('mousemove', e => {
+    function draw(e) {
       if (!drawing) return;
       const pos = getPos(e);
       ctx.lineTo(pos.x, pos.y);
@@ -96,26 +139,15 @@
       ctx.lineWidth = currentLineWidth;
       ctx.lineCap = 'round';
       ctx.stroke();
-    });
+    }
 
-    canvas.addEventListener('mouseup', () => drawing = false);
-    canvas.addEventListener('mouseout', () => drawing = false);
-    canvas.addEventListener('touchstart', e => {
-      drawing = true;
-      const pos = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-    });
-    canvas.addEventListener('touchmove', e => {
-      if (!drawing) return;
-      const pos = getPos(e);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.strokeStyle = isErasing ? '#ffffff' : currentColor;
-      ctx.lineWidth = currentLineWidth;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-    });
-    canvas.addEventListener('touchend', () => drawing = false);
+    function stopDrawing() {
+      if (drawing) {
+        drawing = false;
+        ctx.closePath();
+        saveCanvas();
+      }
+    }
 
     colorPicker.addEventListener('input', () => {
       currentColor = colorPicker.value;
@@ -127,8 +159,23 @@
     });
 
     eraser.addEventListener('click', () => isErasing = true);
-    clear.addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+    clear.addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      saveCanvas();
+    });
 
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    window.addEventListener('resize', resizeCanvas);
     window.addEventListener('beforeunload', () => {
       const image = canvas.toDataURL("image/png");
       if (window.Telegram && Telegram.WebApp) {
@@ -139,6 +186,9 @@
     if (window.Telegram && Telegram.WebApp) {
       Telegram.WebApp.expand();
     }
+
+    resizeCanvas();
+    saveCanvas();
   </script>
 </body>
 </html>
