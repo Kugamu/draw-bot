@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Малювання</title>
+  <style>
+    body { margin: 0; background: #f0f0f0; display: flex; flex-direction: column; align-items: center; }
+    canvas { border: 1px solid #ccc; touch-action: none; margin-top: 10px; }
+    .tools { margin: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="tools">
+    <input type="color" id="colorPicker" value="#000000">
+    <input type="range" id="lineWidth" min="1" max="30" value="5">
+    <button id="eraser">Ластик</button>
+    <button id="clear">Очистити</button>
+  </div>
+  <canvas id="canvas" width="400" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const colorPicker = document.getElementById('colorPicker');
+    const lineWidth = document.getElementById('lineWidth');
+    const eraser = document.getElementById('eraser');
+    const clear = document.getElementById('clear');
+
+    let drawing = false;
+    let currentColor = colorPicker.value;
+    let currentLineWidth = lineWidth.value;
+    let isErasing = false;
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      if (e.touches) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top
+        };
+      } else {
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      }
+    }
+
+    canvas.addEventListener('mousedown', e => {
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!drawing) return;
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = isErasing ? '#ffffff' : currentColor;
+      ctx.lineWidth = currentLineWidth;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    });
+
+    canvas.addEventListener('mouseup', () => drawing = false);
+    canvas.addEventListener('mouseout', () => drawing = false);
+    canvas.addEventListener('touchstart', e => {
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    });
+    canvas.addEventListener('touchmove', e => {
+      if (!drawing) return;
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.strokeStyle = isErasing ? '#ffffff' : currentColor;
+      ctx.lineWidth = currentLineWidth;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    });
+    canvas.addEventListener('touchend', () => drawing = false);
+
+    colorPicker.addEventListener('input', () => {
+      currentColor = colorPicker.value;
+      isErasing = false;
+    });
+
+    lineWidth.addEventListener('input', () => {
+      currentLineWidth = lineWidth.value;
+    });
+
+    eraser.addEventListener('click', () => isErasing = true);
+    clear.addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+
+    window.addEventListener('beforeunload', () => {
+      const image = canvas.toDataURL("image/png");
+      if (window.Telegram && Telegram.WebApp) {
+        Telegram.WebApp.sendData(image);
+      }
+    });
+
+    if (window.Telegram && Telegram.WebApp) {
+      Telegram.WebApp.expand();
+    }
+  </script>
+</body>
+</html>
